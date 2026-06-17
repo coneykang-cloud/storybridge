@@ -82,7 +82,10 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   if (canEditDirectly) {
-    if (page_id) await applyDiffToPage(supabase, page_id, diff_after)
+    if (page_id) {
+      const serviceClient = await createServiceClient()
+      await applyDiffToPage(serviceClient, page_id, diff_after)
+    }
   } else {
     if (parentId) {
       const { data: requesterProfile } = await supabase
@@ -151,7 +154,10 @@ export async function PATCH(request: NextRequest) {
     ...(feedback ? { feedback } : {}),
   }
 
-  const { data: updated } = await supabase
+  // RLS 침묵 실패 방지: 권한 확인(SELECT)은 user client로, 실제 mutation은 service client로
+  const serviceClient = await createServiceClient()
+
+  const { data: updated } = await serviceClient
     .from('approvals')
     .update(updates)
     .eq('id', id)
@@ -160,7 +166,7 @@ export async function PATCH(request: NextRequest) {
 
   // 승인 시 페이지 실제 업데이트
   if (status === 'approved' && approval.page_id) {
-    await applyDiffToPage(supabase, approval.page_id, approval.diff_after)
+    await applyDiffToPage(serviceClient, approval.page_id, approval.diff_after)
   }
 
   const diffSummary = summarizeDiff((approval.diff_after ?? {}) as Partial<StoryPage>)

@@ -8,6 +8,7 @@ import { Home, BookPlus, BookOpen, Palette, Users, Settings, Bell, LogOut, UserC
 import { clsx } from 'clsx'
 import { Badge, RoleBadge } from '@/components/ui/Badge'
 import { createClient } from '@/lib/supabase/client'
+import { useNotificationStore } from '@/stores/notification.store'
 import type { UserRole } from '@/types/app.types'
 
 const navItems = [
@@ -29,9 +30,13 @@ interface SideBarProps {
   role?: UserRole | null
 }
 
-export function SideBar({ pendingCount = 0, unreadCount = 0, role }: SideBarProps) {
+export function SideBar({ pendingCount = 0, unreadCount: initialUnreadCount = 0, role }: SideBarProps) {
   const pathname = usePathname()
   const router = useRouter()
+
+  // NotificationConnector가 스토어를 갱신하면 실시간으로 배지 카운트 반영
+  const { unreadCount: storeUnreadCount, notifications } = useNotificationStore()
+  const unreadCount = notifications.length > 0 ? storeUnreadCount : initialUnreadCount
 
   const handleLogout = async () => {
     const supabase = createClient()

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { SideBar } from '@/components/layout/SideBar'
 import { BottomNavBar } from '@/components/layout/BottomNavBar'
+import { NotificationConnector } from '@/components/layout/NotificationConnector'
 import type { UserRole } from '@/types/app.types'
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
@@ -12,7 +13,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
   if (user) {
     const [{ data: profile }, { count }] = await Promise.all([
       supabase.from('user_profiles').select('role').eq('id', user.id).single(),
-      supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('is_read', false),
+      supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('is_read', false).eq('user_id', user.id),
     ])
     role = (profile?.role ?? null) as UserRole | null
     unreadCount = count ?? 0
@@ -20,6 +21,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="flex h-screen overflow-hidden">
+      {user && <NotificationConnector userId={user.id} />}
       <SideBar role={role} unreadCount={unreadCount} />
       <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
         {children}

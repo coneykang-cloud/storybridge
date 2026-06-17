@@ -18,6 +18,7 @@ function notificationIcon(notification: Notification) {
     case 'approval_result':  return notification.title.includes('승인') ? '✅' : '❌'
     case 'approval_sent':    return '📤'
     case 'comment':          return '💬'
+    case 'track_notify':     return '📋'
     default:                 return '📌'
   }
 }
@@ -29,17 +30,21 @@ function formatDateTime(iso: string) {
 
 export function NotificationsClient({ userId, initialNotifications }: Props) {
   const router = useRouter()
-  const { notifications, unreadCount, setNotifications, markAsRead, markAllAsRead, connect, disconnect } = useNotificationStore()
+  const { notifications, unreadCount, setNotifications, markAsRead, markAllAsRead } = useNotificationStore()
 
   useEffect(() => {
+    // NotificationConnector(layout)가 이미 realtime 연결 관리, 여기서는 초기값만 세팅
     setNotifications(initialNotifications)
-    connect(userId)
-    return () => disconnect()
   }, [userId])
 
   const handleClick = async (notification: Notification) => {
     if (!notification.is_read) await markAsRead(notification.id)
-    router.push(notification.story_id ? `/story/${notification.story_id}` : '/collab')
+    // 승인 요청은 협업공간에서 처리하므로 collab으로 이동
+    if (notification.type === 'approval_request') {
+      router.push('/collab')
+    } else {
+      router.push(notification.story_id ? `/story/${notification.story_id}` : '/collab')
+    }
   }
 
   if (notifications.length === 0) {

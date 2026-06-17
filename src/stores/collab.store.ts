@@ -31,7 +31,6 @@ export const useCollabStore = create<CollabStore>((set, get) => ({
   pendingApprovals: [],
   approvalHistory: [],
   comments: [],
-  notifications: [],
   channel: null,
 
   setPendingApprovals: (approvals) => set({ pendingApprovals: approvals }),
@@ -49,18 +48,32 @@ export const useCollabStore = create<CollabStore>((set, get) => ({
     let channel = supabase.channel(`group:${groupId}`)
 
     if (storyIds.length > 0) {
-      channel = channel.on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'approvals', filter: `story_id=in.(${storyIds.join(',')})` },
-        (payload) => {
-          const approval = payload.new as Approval
-          if (approval.status === 'pending') {
-            set((state) => ({
-              pendingApprovals: [approval, ...state.pendingApprovals],
-            }))
+      const approvalFilter = `story_id=in.(${storyIds.join(',')})`
+      channel = channel
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'approvals', filter: approvalFilter },
+          (payload) => {
+            const approval = payload.new as Approval
+            if (approval.status === 'pending') {
+              set((state) => ({
+                pendingApprovals: [approval, ...state.pendingApprovals],
+              }))
+            }
           }
-        }
-      )
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'approvals', filter: approvalFilter },
+          (payload) => {
+            const approval = payload.new as Approval
+            if (approval.status !== 'pending') {
+              set((state) => ({
+                pendingApprovals: state.pendingApprovals.filter((a) => a.id !== approval.id),
+              }))
+            }
+          }
+        )
     }
 
     channel = channel.on(

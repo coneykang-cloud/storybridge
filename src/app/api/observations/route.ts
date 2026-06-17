@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import type { ObservationSetting, SeatFunction } from '@/types/app.types'
 
 /* ── GET /api/observations?child_id=xxx ──────────────────────── */
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: profile } = await supabase
-    .from('user_profiles').select('role').eq('id', user.id).single()
+    .from('user_profiles').select('role, full_name').eq('id', user.id).single()
   if (!profile) return NextResponse.json({ error: '프로필을 찾을 수 없습니다.' }, { status: 404 })
 
   const body = await request.json()
@@ -86,5 +86,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '이 아이에 대한 관찰 기록 작성 권한이 없습니다.' }, { status: 403 })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // 보호자가 관찰 기록 작성 시 → 협업 그룹 내 치료사에게 알림
+  if (profile.role === 'parent' && data) {
+    try {
+      const serviceClient = await createServiceClient()
+
+      const { data: groups } = await serviceClient
+        .from('groups')
+        .select('id')
+        .eq('child_id', child_id)
+
+      if (groups && groups.length > 0) {
+        const groupIds = groups.map((g: { id: string }) => g.id)
+
+        const { data: therapistMembers } = await serviceClient
+          .from('group_members')
+          .select('user_id')
+          .in('group_id', groupIds)
+          .eq('role', 'therapist')
+
+        if (therapistMembers && therapistMembers.length > 0) {
+          const recorderName = (profile as { role: string; full_name?: string }).full_name ?? '보호자'
+          await serviceClient.from('notifications').insert(
+            therapistMembers.map((m: { user_id: string }) => ({
+              user_id: m.user_id,
+              type: 'track_notify',
+              title: '새 행동 관찰 기록',
+              body: `${recorderName}님이 행동 관찰 기록을 작성했어요`,
+            }))
+          )
+        }
+      }
+    } catch {
+      // 알림 실패가 관찰 기록 저장 자체를 막지 않도록 예외 무시
+    }
+  }
+
   return NextResponse.json({ observation: data }, { status: 201 })
 }

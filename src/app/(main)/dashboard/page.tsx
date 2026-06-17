@@ -39,7 +39,7 @@ export default async function DashboardPage() {
           .order('updated_at', { ascending: false })
           .limit(6),
     supabase.from('approvals').select('id, story:stories!inner(child_id)').eq('status', 'pending'),
-    supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('is_read', false),
+    supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('is_read', false).eq('user_id', user.id),
   ])
 
   const profile = profileRes.data as UserProfile | null
